@@ -7,7 +7,7 @@ int     main(int argc, char **argv)
         if (argc != 3)
 	{
 error:
-                cerr << "Usage: " << argv[0] << "[project name]" << "[C | C++ | CPP]" << endl;
+                cerr << "Usage: " << argv[0] << " [project name]" << "[C | C++ | CPP]" << endl;
 		return (1);
 	}
 
