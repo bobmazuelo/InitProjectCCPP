@@ -1,4 +1,4 @@
-SRDIR = srcs/
+SRDIR = src/
 SRC = $(wildcard $(SRDIR)*.cpp)
 NAME = bin/InitProject
 DSRC = $(addprefix $(SRDIR), $(SRC))
