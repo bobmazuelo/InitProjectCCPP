@@ -21,7 +21,7 @@ void	c(std::string name)
 		exit(1);
 	}
 
-	makefile << R"(SRDIR = srcs/
+	makefile << R"(SRDIR = src/
 SRC = $(wildcard $(SRDIR)*.c)
 NAME = bin/)" << name << R"(
 DSRC = $(addprefix $(SRDIR), $(SRC))
@@ -52,7 +52,7 @@ re: fclean all
 	makefile.close();
 
 // Archivo C
-	ofstream cFile("srcs/" + name + ".c");
+	ofstream cFile("src/" + name + ".c");
 
 	if (!cFile)
 	{
@@ -116,7 +116,7 @@ void	cpp(std::string name)
 		exit(1);
 	}
 
-	makefile << R"(SRDIR = srcs/
+	makefile << R"(SRDIR = src/
 SRC = $(wildcard $(SRDIR)*.cpp)
 NAME = bin/)" << name << R"(
 DSRC = $(addprefix $(SRDIR), $(SRC))
@@ -147,7 +147,7 @@ re: fclean all
 	makefile.close();
 
 // Archivo CPP
-	ofstream cFile("srcs/" + name + ".cpp");
+	ofstream cFile("src/" + name + ".cpp");
 
 	if (!cFile)
 	{
