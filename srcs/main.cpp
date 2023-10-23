@@ -7,7 +7,7 @@ int     main(int argc, char **argv)
         if (argc != 3)
 	{
 error:
-                cerr << "Usage: " << argv[0] << " [project name]" << " [C | C++ | CPP]" << endl;
+                cerr << "Usage: " << argv[0] << " [project name] " << "[C | C++ | CPP]" << endl;
 		return (1);
 	}
 
@@ -17,7 +17,7 @@ error:
 	mkdir(name.c_str(), 0777);
 	chdir(name.c_str());
 
-	mkdir("srcs", 0777);
+	mkdir("src", 0777);
 	mkdir("include", 0777);
 	mkdir("bin", 0777);
 
