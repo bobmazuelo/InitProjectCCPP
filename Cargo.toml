@@ -1,0 +1,13 @@
+[package]
+name = "init_project"
+version = "2.1.0"
+edition = "2021"
+authors = ["kodi2023"]
+description = "Inicializador de proyectos C/C++/Python/Rust con estructura estándar"
+
+[[bin]]
+name = "InitProject"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
