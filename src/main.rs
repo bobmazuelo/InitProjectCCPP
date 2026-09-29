@@ -7,7 +7,6 @@ use std::process;
 // ─── Colores ANSI ─────────────────────────────────────────────────────────────
 const RED: &str = "\x1b[31m";
 const GREEN: &str = "\x1b[32m";
-const YELLOW: &str = "\x1b[33m";
 const CYAN: &str = "\x1b[36m";
 const BOLD: &str = "\x1b[1m";
 const RESET: &str = "\x1b[0m";
@@ -22,11 +21,6 @@ macro_rules! info {
         println!("{}➜  {}{}", CYAN, format!($($arg)*), RESET)
     };
 }
-macro_rules! warn {
-    ($($arg:tt)*) => {
-        println!("{}⚠  {}{}", YELLOW, format!($($arg)*), RESET)
-    };
-}
 macro_rules! err {
     ($($arg:tt)*) => {
         eprintln!("{}✖  ERROR: {}{}", RED, format!($($arg)*), RESET)
@@ -39,7 +33,7 @@ fn find_header(env_var: &str, filename: &str) -> Option<PathBuf> {
     // 1. Variable de entorno
     if let Ok(val) = std::env::var(env_var) {
         let p = PathBuf::from(val);
-        if p.exists() {
+        if p.is_file() {
             return Some(p);
         }
     }
@@ -47,14 +41,14 @@ fn find_header(env_var: &str, filename: &str) -> Option<PathBuf> {
     // 2. Junto al ejecutable
     if let Ok(exe) = std::env::current_exe() {
         let p = exe.parent().unwrap_or(Path::new(".")).join(filename);
-        if p.exists() {
+        if p.is_file() {
             return Some(p);
         }
     }
 
     // 3. /usr/local/share/InitProject/
     let system = PathBuf::from(format!("/usr/local/share/InitProject/{}", filename));
-    if system.exists() {
+    if system.is_file() {
         return Some(system);
     }
 
@@ -62,7 +56,7 @@ fn find_header(env_var: &str, filename: &str) -> Option<PathBuf> {
     let cwd = std::env::current_dir()
         .unwrap_or_default()
         .join(filename);
-    if cwd.exists() {
+    if cwd.is_file() {
         return Some(cwd);
     }
 
@@ -107,7 +101,7 @@ fn run(cmd: &str, args: &[&str]) -> Result<(), String> {
 
 // ─── Proyecto C ───────────────────────────────────────────────────────────────
 
-fn create_c_project(name: &str, git: bool) -> Result<(), String> {
+fn create_c_project(name: &str, git: bool, nob_src: &Path) -> Result<(), String> {
     let upper = name.to_uppercase();
 
     // Directorios
@@ -116,9 +110,7 @@ fn create_c_project(name: &str, git: bool) -> Result<(), String> {
     }
 
     // nob.h
-    let nob_src = find_header("NOB_PATH", "nob.h")
-        .ok_or("ERROR @ No se encontró nob.h. Usa NOB_PATH o instálalo en /usr/local/share/InitProject/")?;
-    copy_header(&nob_src, "nob.h")?;
+    copy_header(nob_src, "nob.h")?;
     ok!("nob.h copiado desde {:?}", nob_src);
 
     // Makefile
@@ -131,7 +123,7 @@ SRC     = $(wildcard $(SRDIR)*.c)
 NAME    = bin/{name}
 OBJS    = $(SRC:.c=.o)
 CC      = gcc
-CFLAGS  = -Wall -Wextra -Werror -Iinclude
+CFLAGS  = -Wall -Wextra -Werror -fPIC -Iinclude
 TFLAGS  = -shared -fPIC -Iinclude
 RM      = rm -rf
 
@@ -165,7 +157,7 @@ re: fclean all
 
     // src/main.c
     write_file(
-        &format!("src/main.c"),
+        "src/main.c",
         &format!(
             r#"#include <{name}.h>
 
@@ -335,7 +327,7 @@ Ok(())
 
 // ─── Proyecto C++ ─────────────────────────────────────────────────────────────
 
-fn create_cpp_project(name: &str, git: bool) -> Result<(), String> {
+fn create_cpp_project(name: &str, git: bool, nob_src: &Path) -> Result<(), String> {
     let upper = name.to_uppercase();
 
     for dir in &["src", "include", "test", "build"] {
@@ -343,9 +335,7 @@ fn create_cpp_project(name: &str, git: bool) -> Result<(), String> {
     }
 
     // nob.h
-    let nob_src = find_header("NOB_PATH", "nob.h")
-        .ok_or("ERROR @ No se encontró nob.h. Usa NOB_PATH o instálalo en /usr/local/share/InitProject/")?;
-    copy_header(&nob_src, "nob.h")?;
+    copy_header(nob_src, "nob.h")?;
     ok!("nob.h copiado desde {:?}", nob_src);
 
     // CMakeLists.txt
@@ -485,6 +475,130 @@ ok!("Proyecto C++ '{name}' creado con éxito.");
 Ok(())
 }
 
+// ─── Generadores con herramientas nativas ─────────────────────────────────────
+
+fn create_csharp_project(name: &str, git: bool) -> Result<(), String> {
+    run("dotnet", &[
+        "new", "console", "--language", "C#", "--name", name,
+        "--output", ".", "--no-restore",
+    ])?;
+    write_file(".gitignore", "bin/\nobj/\n.vs/\n*.user\n")?;
+    write_readme(name, "C#")?;
+    run("dotnet", &["build"])?;
+    if git {
+        init_git()?;
+    }
+    ok!("Proyecto C# '{name}' creado con éxito.");
+    Ok(())
+}
+
+fn create_rust_project(name: &str, git: bool) -> Result<(), String> {
+    fs::create_dir_all("src").map_err(|e| format!("mkdir src: {e}"))?;
+    // Own workspace: never add this project to an ancestor's Cargo workspace.
+    write_file("Cargo.toml", &format!(
+        "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\n\n[workspace]\n"
+    ))?;
+    write_file("src/main.rs", "fn main() {\n    println!(\"Hello, world!\");\n}\n")?;
+    write_file(".gitignore", "/target/\n")?;
+    write_readme(name, "Rust")?;
+    run("cargo", &["build"])?;
+    if git {
+        init_git()?;
+    }
+    ok!("Proyecto Rust '{name}' creado con éxito.");
+    Ok(())
+}
+
+fn create_python_project(name: &str, git: bool) -> Result<(), String> {
+    run("uv", &[
+        "init", "--app", "--no-package", "--name", name,
+        "--python", ">=3.14,<3.15", "--no-pin-python", "--no-workspace",
+        "--vcs", "none", ".",
+    ])?;
+    write_file(".python-version", "3.14\n")?;
+    write_file(".gitignore", ".venv/\n__pycache__/\n*.py[cod]\n.pytest_cache/\n")?;
+    write_readme(name, "Python")?;
+    run("uv", &["sync", "--python", "3.14"])?;
+    if git {
+        init_git()?;
+    }
+    ok!("Proyecto Python 3.14 '{name}' creado con éxito.");
+    Ok(())
+}
+
+// ─── Validación antes de escribir ─────────────────────────────────────────────
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Language {
+    C,
+    Cpp,
+    Csharp,
+    Rust,
+    Python,
+}
+
+impl Language {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_uppercase().as_str() {
+            "C" => Ok(Self::C),
+            "C++" | "CPP" => Ok(Self::Cpp),
+            "C#" | "CS" | "CSHARP" => Ok(Self::Csharp),
+            "RUST" | "RS" => Ok(Self::Rust),
+            "PYTHON" | "PY" | "PYTHON3" | "PYTHON3.14" => Ok(Self::Python),
+            other => Err(format!("Lenguaje desconocido: '{other}'. Usa C, C++, C#, Rust o Python.")),
+        }
+    }
+}
+
+fn validate_name(name: &str, lang: Language) -> Result<(), String> {
+    if !name.starts_with(|c: char| c.is_ascii_alphabetic())
+        || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err("El nombre debe empezar por una letra ASCII y contener solo letras, números o '_'; no se admiten rutas.".into());
+    }
+    if matches!(lang, Language::C | Language::Cpp) && name.eq_ignore_ascii_case("main") {
+        return Err("El nombre 'main' colisiona con el archivo de entrada de C/C++.".into());
+    }
+    Ok(())
+}
+
+fn ensure_empty_destination(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    if !path.is_dir() {
+        return Err(format!("El destino {:?} existe y no es un directorio.", path));
+    }
+    let mut entries = fs::read_dir(path).map_err(|e| format!("No se pudo leer {:?}: {e}", path))?;
+    if entries.next().is_some() {
+        return Err(format!("El directorio {:?} no está vacío; usa un destino nuevo para evitar sobrescribir archivos.", path));
+    }
+    Ok(())
+}
+
+fn preflight(lang: Language, git: bool) -> Result<Option<PathBuf>, String> {
+    let commands: &[&str] = match lang {
+        Language::C => &["gcc", "make"],
+        Language::Cpp => &["cmake"],
+        Language::Csharp => &["dotnet"],
+        Language::Rust => &["cargo"],
+        Language::Python => &["uv"],
+    };
+    for cmd in commands {
+        run(cmd, &["--version"])?;
+    }
+    if git {
+        run("git", &["--version"])?;
+    }
+    if matches!(lang, Language::C | Language::Cpp) {
+        let header = find_header("NOB_PATH", "nob.h")
+            .ok_or("No se encontró nob.h. Define NOB_PATH o instálalo en /usr/local/share/InitProject/.")?;
+        return header.canonicalize().map(Some)
+            .map_err(|e| format!("No se pudo resolver {:?}: {e}", header));
+    }
+    Ok(None)
+}
+
 // ─── Helpers de escritura ─────────────────────────────────────────────────────
 
 fn write_file(path: &str, content: &str) -> Result<(), String> {
@@ -494,10 +608,25 @@ fn write_file(path: &str, content: &str) -> Result<(), String> {
 }
 
 fn write_readme(name: &str, lang: &str) -> Result<(), String> {
+    let commands = match lang {
+        "C" => "make\nmake run\nmake lib\n(cd test && python3 test.py)",
+        "C++" => "cmake -S . -B build\ncmake --build build",
+        "C#" => "dotnet build\ndotnet run",
+        "Rust" => "cargo build\ncargo run\ncargo test",
+        "Python" => "uv sync --python 3.14\nuv run python main.py\nuv add nombre_del_paquete",
+        _ => unreachable!("unsupported README language"),
+    };
+    let details = match lang {
+        "C++" => format!("\nEjecutar: `./build/{name}` (generador de configuración única).\n"),
+        "C#" => "\nRequiere el SDK de .NET. El framework lo elige la plantilla del SDK instalado.\n".into(),
+        "Python" => "\nRequiere uv. Python está fijado a la serie 3.14; uv puede descargarlo si no está instalado. Versiona `uv.lock` y `.python-version`, no `.venv/`.\n".into(),
+        "Rust" => "\nRequiere Rust y Cargo. Versiona `Cargo.lock`; este binario tiene su propio workspace.\n".into(),
+        _ => String::new(),
+    };
     write_file(
         "README.md",
         &format!(
-            "# {name}\n\nProyecto {lang} generado con InitProject.\n\n## Build\n\nVer `Makefile` o `CMakeLists.txt`.\n"
+            "# {name}\n\nProyecto {lang} generado con InitProject.\n\n## Uso\n\n```sh\n{commands}\n```\n{details}"
         ),
     )
 }
@@ -527,9 +656,9 @@ fn init_git() -> Result<(), String> {
 
 fn main() {
     let matches = Command::new("init_project")
-        .version("2.1.0")
-        .author("kodi2023")
-        .about("Inicializa proyectos C, C++, C#, Rust con estructura estándar")
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(
             Arg::new("name")
             .help("Nombre del proyecto")
@@ -537,7 +666,7 @@ fn main() {
         )
         .arg(
             Arg::new("lang")
-            .help("Lenguaje: C | C++ CPP")
+            .help("Lenguaje: C | C++ (CPP) | C# (CS, CSHARP) | Rust (RS) | Python (PY, PYTHON3, PYTHON3.14)")
             .index(2),
         )
         .arg(
@@ -561,24 +690,28 @@ fn main() {
 
     let lang_raw = match matches.get_one::<String>("lang") {
         Some(l) => l.clone(),
-        None => prompt("Lenguaje (C | C++ CPP):"),
+        None => prompt("Lenguaje (C | C++ | C# | Rust | Python):"),
     };
 
-    let lang = lang_raw.trim().to_uppercase();
+    let lang = Language::parse(&lang_raw).unwrap_or_else(|e| {
+        err!("{}", e);
+        process::exit(1);
+    });
 
-    if name.is_empty() {
-        err!("El nombre del proyecto no puede estar vacío.");
+    if let Err(e) = validate_name(&name, lang) {
+        err!("{}", e);
         process::exit(1);
     }
 
-    // ── Detección de directorio existente ────────────────────────────────
-    if Path::new(&name).exists() {
-        warn!("El directorio '{}' ya existe.", name);
-        let answer = prompt("¿Continuar de todas formas? [s/N]:");
-        if !matches!(answer.to_lowercase().as_str(), "s" | "si" | "sí" | "yes" | "y") {
-            info!("Operación cancelada.");
-            process::exit(0);
-        }
+    // Validate tools and resolve the header before creating/changing directories.
+    let nob_src = preflight(lang, !no_git).unwrap_or_else(|e| {
+        err!("{}", e);
+        process::exit(1);
+    });
+
+    if let Err(e) = ensure_empty_destination(Path::new(&name)) {
+        err!("{}", e);
+        process::exit(1);
     }
 
     // ── Crear y entrar al directorio ──────────────────────────────────────
@@ -595,13 +728,12 @@ fn main() {
     info!("Creando proyecto '{}' en {:?}...", name, std::env::current_dir().unwrap());
 
     // ── Despachar al generador correcto ──────────────────────────────────
-    let result = match lang.as_str() {
-        "C" => create_c_project(&name, !no_git),
-        "C++" | "CPP" => create_cpp_project(&name, !no_git),
-        other => {
-            err!("Lenguaje desconocido: '{}'. Usa C, C++ o CPP.", other);
-            process::exit(1);
-        }
+    let result = match lang {
+        Language::C => create_c_project(&name, !no_git, nob_src.as_deref().unwrap()),
+        Language::Cpp => create_cpp_project(&name, !no_git, nob_src.as_deref().unwrap()),
+        Language::Csharp => create_csharp_project(&name, !no_git),
+        Language::Rust => create_rust_project(&name, !no_git),
+        Language::Python => create_python_project(&name, !no_git),
     };
 
     if let Err(e) = result {

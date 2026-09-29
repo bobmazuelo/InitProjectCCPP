@@ -3,7 +3,7 @@ name = "init_project"
 version = "2.1.0"
 edition = "2021"
 authors = ["kodi2023"]
-description = "Inicializador de proyectos C/C++/Python/Rust con estructura estándar"
+description = "Inicializador escrito en Rust para proyectos C/C++/C#/Rust/Python 3.14"
 
 [[bin]]
 name = "InitProject"
